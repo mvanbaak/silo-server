@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"debug/buildinfo"
 	"debug/elf"
 	"debug/macho"
 	"debug/pe"
@@ -18,6 +19,23 @@ const (
 // from its executable header. ok is false for formats this host does not
 // recognize; callers treat that as "unknown" rather than as a mismatch.
 func binaryPlatform(path string) (goos, goarch string, ok bool) {
+	// Go binaries record their build target, which is the only reliable way
+	// to tell a FreeBSD ELF binary from a Linux one: both share a machine
+	// type and Silo only ever shipped Linux ELF plugins.
+	if info, err := buildinfo.ReadFile(path); err == nil {
+		var goosSet, goarchSet bool
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "GOOS":
+				goos, goosSet = setting.Value, true
+			case "GOARCH":
+				goarch, goarchSet = setting.Value, true
+			}
+		}
+		if goosSet && goarchSet {
+			return goos, goarch, true
+		}
+	}
 	if f, err := elf.Open(path); err == nil {
 		defer func() { _ = f.Close() }()
 		switch f.Machine {
@@ -34,8 +52,8 @@ func binaryPlatform(path string) (goos, goarch string, ok bool) {
 		default:
 			return "", "", false
 		}
-		// Go tags ELF binaries for linux and freebsd alike; linux is the
-		// only ELF platform Silo ships plugins for.
+		// A non-Go ELF binary carries no build info; linux is the only ELF
+		// platform Silo ships plugins for.
 		return osLinux, goarch, true
 	}
 	if f, err := macho.Open(path); err == nil {
