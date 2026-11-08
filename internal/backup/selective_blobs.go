@@ -130,7 +130,7 @@ func checkTempSpace(dir string, rs *RestoreSet, keep map[string]bool) error {
 	}
 	// A file system that reports no inodes (st.Files 0) allocates them as
 	// it needs them.
-	if inodes := uint64(len(keep)+len(rs.Users)) + inodeMargin; st.Files > 0 && st.Ffree < inodes {
+	if inodes := uint64(len(keep)+len(rs.Users)) + inodeMargin; st.Files > 0 && uint64(st.Ffree) < inodes {
 		return fmt.Errorf("%w: %d files can be created there, %d needed (the selected items' files plus %d); free space or select fewer items",
 			ErrNotEnoughTempSpace, st.Ffree, inodes, inodeMargin)
 	}

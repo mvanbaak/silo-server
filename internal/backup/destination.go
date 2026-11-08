@@ -247,13 +247,14 @@ func (d StoreDestination) FreeBytes(context.Context) (uint64, bool, error) {
 	return blockBytes(st.Bavail, st.Bsize), true, nil
 }
 
-// blockBytes is blocks times a Statfs block size, whose type differs by
-// platform (int64 on Linux, uint32 on macOS).
-func blockBytes[S ~int32 | ~int64 | ~uint32 | ~uint64](blocks uint64, size S) uint64 {
+// blockBytes is blocks times a Statfs block size; both types differ by
+// platform (Bsize is int64 on Linux and uint32 on macOS, Bavail is uint64 on
+// Linux but int64 on FreeBSD).
+func blockBytes[B ~int32 | ~int64 | ~uint32 | ~uint64, S ~int32 | ~int64 | ~uint32 | ~uint64](blocks B, size S) uint64 {
 	if size <= 0 {
 		return 0
 	}
-	return blocks * uint64(size)
+	return uint64(blocks) * uint64(size)
 }
 
 func (d StoreDestination) DownloadURL(ctx context.Context, key string, ttl time.Duration) (string, time.Time, bool, error) {
