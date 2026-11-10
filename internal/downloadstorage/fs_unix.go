@@ -1,4 +1,4 @@
-//go:build linux || darwin
+//go:build linux || darwin || freebsd
 
 package downloadstorage
 
@@ -14,7 +14,13 @@ func statFS(path string) (fsStats, error) {
 	if err := unix.Statfs(path, &st); err != nil {
 		return fsStats{}, err
 	}
-	blocks, free, available, size := uint64(st.Blocks), uint64(st.Bfree), uint64(st.Bavail), uint64(st.Bsize) //nolint:unconvert // widths vary by OS
+	blocks, free, size := uint64(st.Blocks), uint64(st.Bfree), uint64(st.Bsize) //nolint:unconvert // widths vary by OS
+	// Bavail is int64 on FreeBSD and can be negative there (an over-quota ZFS
+	// dataset, a filled NFS quota), so clamp it before the unsigned conversion.
+	available := uint64(st.Bavail) //nolint:unconvert // int64 on freebsd
+	if st.Bavail <= 0 {
+		available = 0
+	}
 	if free > blocks {
 		free = blocks
 	}

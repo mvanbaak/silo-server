@@ -1,4 +1,4 @@
-//go:build linux || darwin
+//go:build linux || darwin || freebsd
 
 package nodemetrics
 
@@ -29,10 +29,17 @@ func osStatfs(path string) (fsStats, error) {
 	if err := unix.Statfs(path, &st); err != nil {
 		return fsStats{}, err
 	}
-	stats := fsCapacity(st.Blocks, st.Bfree, st.Bavail, uint64(st.Bsize))
+	// Bavail and Ffree are int64 on FreeBSD and can be negative there, so clamp
+	// them before the unsigned conversions.
+	available := uint64(st.Bavail) //nolint:unconvert // int64 on freebsd
+	if st.Bavail <= 0 {
+		available = 0
+	}
+	stats := fsCapacity(st.Blocks, st.Bfree, available, uint64(st.Bsize))
 	stats.InodesTotal = st.Files
-	if st.Ffree <= st.Files {
-		stats.InodesUsed = st.Files - st.Ffree
+	freeInodes := uint64(st.Ffree) //nolint:unconvert // int64 on freebsd
+	if st.Ffree >= 0 && freeInodes <= st.Files {
+		stats.InodesUsed = st.Files - freeInodes
 	}
 	stats.FSID = formatFSID(int64(st.Fsid.Val[0]), int64(st.Fsid.Val[1]))
 	return stats, nil
